@@ -1,0 +1,16 @@
+extends layouts/main.pug
+
+block content
+  h1 Standup Bot Dashboard
+  ul
+    each row in results
+      li
+        a(href=`/standups/remove/${row['id']}`) Delete Standup
+        ul
+          - var parsed_row = JSON.parse(row['standup']);
+          each response, user in parsed_row
+            li
+              = user
+              ul
+                each question in response
+                  li= `${question['question']} ${question['answer']}`

@@ -1,6 +1,7 @@
 // forked from: https://github.com/BeepBoopHQ/starter-node-bot/blob/master/index.js
 
 const Botkit = require('botkit');
+const db = require('../db/db');
 
 const token = process.env.SLACK_TOKEN
 
@@ -29,6 +30,34 @@ if (token) {
   require('beepboop-botkit').start(controller, { debug: true })
 }
 
+
+var curStandup = undefined;
+
+var addToStandup = function(userId, responses) {
+  curStandup[userId] = responses;
+}
+
+var finishedStandup = function(bot) {
+  bot.api.users.list({}, function(err,response) {
+    if(err) {
+      console.log(err);
+    } else {
+      var namedStandup = {};
+      console.log(response['members'])
+      for(var idx in response['members']) {
+        user = response['members'][idx];
+        if(curStandup[user['id']]) {
+          namedStandup[user['real_name']] = curStandup[user['id']];
+        }
+      }
+
+      db.addStandup(JSON.stringify(namedStandup));
+      curStandup = undefined;
+    }
+  });
+}
+
+
 // friendly reminder that he is there
 controller.hears(['hi', 'hello'], ['direct_mention', 'ambient', 'direct_message'], function (bot, message) {
   bot.reply(message, "Hello there, <@" + message.user + ">.");
@@ -38,16 +67,25 @@ controller.hears(['hi', 'hello'], ['direct_mention', 'ambient', 'direct_message'
 controller.hears(['start standup', 'start a standup', 'standup'], ['direct_mention', 'ambient'], function (bot, message) {
   bot.reply(message, "Alright! Let's get started.");
 
-  bot.api.channels.info({"channel": message['channel']},function(err,response) {
+  bot.api.channels.info({"channel": message['channel']}, function(err,response) {
     if(err) {
       console.log(err);
     } else {
-      users = response['channel']['members']
-      removeUser(users, bot['identity']['id']);
+      if(curStandup === undefined) {
+        curStandup = {};
+        users = response['channel']['members']
+        removeUser(users, bot['identity']['id']);
 
-      startIndividualStandup(bot, message, users);
+        startIndividualStandup(bot, message, users);
+      } else {
+        bot.reply(message, 'There is already a standup in progress.');
+      }
     }
   });
+});
+
+controller.hears('.*', ['ambient'], function (bot, message) {
+  console.log(message);
 });
 
 var removeUser = function(users, userId) {
@@ -114,6 +152,7 @@ var standupConversation = function(users, userId, conversation, bot, message) {
   conversation.addQuestion('Is there anything blocking you?', function(response, convo) {
     if(users.length == 0) {
       convo.say("Everyone has gone. Thank you all.");
+      finishedStandup(bot);
     } else {
       convo.gotoThread('next_person');
     }
@@ -126,10 +165,19 @@ var standupConversation = function(users, userId, conversation, bot, message) {
     'Say `done` if you are done.\nWho would you like to go next?\n' + printUsers(users) + (users.length == 1 ? ' has ' : ' have ') + 'not gone yet.',
     function(response, convo) {
 
-    console.log(conversation.getResponses());
+    var responses = conversation.getResponses();
+    for(var key in responses) {
+      if(key != 'b' && key != 't' && key != 'y') {
+        delete responses[key];
+        break;
+      }
+    }
+
+    addToStandup(userId, responses);
 
     if(response.text == 'done') {
       convo.say('Standup completed. Thank you.');
+      finishedStandup(bot);
     } else {
       nextUserId = extractUserId(response.text);
 

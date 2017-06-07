@@ -1,8 +1,0 @@
-name: testbot
-description: A node.js slack bot
-avatar: resources/avatar.png
-config:
-- name: ENV_VAR
-  friendly_name: environment variable
-  info: this is a secret variable
-  type: secret
