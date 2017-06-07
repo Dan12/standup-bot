@@ -4,6 +4,9 @@
   "description": "A simple slack bot for standups",
   "main": "index.js",
   "license": "MIT",
+  "scripts": {
+    "start": "node index.js"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Dan12/standup-bot.git"
