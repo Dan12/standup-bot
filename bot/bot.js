@@ -161,7 +161,7 @@ var startIndividualStandup = function(bot, message, users, standupId) {
   });
 }
 
-var noTextResponse = function(conversation, varname, response) {
+var noTextResponse = function(response) {
   if(response.text == '' && response.attachments && response.attachments.length > 0) {
     response.text = '[attachment]: ' + response.attachments[0].title;
   }
@@ -174,25 +174,25 @@ var standupConversation = function(users, userId, conversation, bot, message, st
   removeUser(users, userId);
 
   conversation.addQuestion('What did you do yesterday?', function(response, convo) {
-    noTextResponse(convo, 'y', response);
+    noTextResponse(response);
     convo.next();
 
   },{key: 'y', multiple: false},'default');
 
   conversation.addQuestion('What do you plan on doing today?', function(response, convo) {
-    noTextResponse(convo, 't', response);
+    noTextResponse(response);
     convo.next();
 
   },{key: 't', multiple: false},'default');
 
   conversation.addQuestion('Is there anything blocking you?', function(response, convo) {
-    noTextResponse(convo, 'b', response);
+    noTextResponse(response);
     convo.next();
 
   },{key: 'b', multiple: false},'default');
 
   conversation.addQuestion('How are you feeling today?', function(response, convo) {
-    noTextResponse(convo, 'f', response);
+    noTextResponse(response);
     if(users.length == 0) {
       convo.say("Everyone has gone. Thank you all.");
       finishedStandup(bot);
