@@ -30,33 +30,7 @@ if (token) {
   require('beepboop-botkit').start(controller, { debug: true })
 }
 
-
-var curStandup = undefined;
-
-var addToStandup = function(userId, responses) {
-  curStandup[userId] = responses;
-}
-
-var finishedStandup = function(bot) {
-  bot.api.users.list({}, function(err,response) {
-    if(err) {
-      console.log(err);
-    } else {
-      var namedStandup = {};
-      console.log(response['members'])
-      for(var idx in response['members']) {
-        user = response['members'][idx];
-        if(curStandup[user['id']]) {
-          namedStandup[user['real_name']] = curStandup[user['id']];
-        }
-      }
-
-      db.addStandup(JSON.stringify(namedStandup));
-      curStandup = undefined;
-    }
-  });
-}
-
+var inStandup = false;
 
 // friendly reminder that he is there
 controller.hears(['hi', 'hello'], ['direct_mention', 'ambient', 'direct_message'], function (bot, message) {
@@ -67,20 +41,59 @@ controller.hears(['hi', 'hello'], ['direct_mention', 'ambient', 'direct_message'
 controller.hears(['start standup', 'start a standup', 'standup'], ['direct_mention', 'ambient'], function (bot, message) {
   bot.reply(message, "Alright! Let's get started.");
 
+  if(!inStandup) {
+    inStandup = true;
+  } else {
+    bot.reply(message, 'There is already a standup in progress.');
+  }
+
   bot.api.channels.info({"channel": message['channel']}, function(err,response) {
     if(err) {
       console.log(err);
     } else {
-      if(curStandup === undefined) {
-        curStandup = {};
-        users = response['channel']['members']
-        removeUser(users, bot['identity']['id']);
+      channel_users = response['channel']['members']
+      bot.api.users.list({}, function(err,response) {
+        if(err) {
+          console.log(err);
+        } else {
+          // create a map from user id to user name
+          var userIdToName = {};
+          for(var idx in response['members']) {
+            user = response['members'][idx];
+            if(user['real_name'] == '') {
+              userIdToName[user['id']] = user['name'];
+            } else {
+              userIdToName[user['id']] = user['real_name'];
+            }
 
-        startIndividualStandup(bot, message, users);
-      } else {
-        bot.reply(message, 'There is already a standup in progress.');
-      }
+          }
+
+          // only copy over users in the channel from userIdToName
+          users = {};
+          for(var idx in channel_users) {
+            users[channel_users[idx]] = userIdToName[channel_users[idx]];
+          }
+
+          // remove this bot from user list
+          removeUser(users, bot['identity']['id']);
+
+          db.createStandup((err, res) => {
+            if(err) {
+              console.log(err);
+              bot.reply(message, 'Sorry, there was a database error.');
+            } else {
+              startIndividualStandup(bot, message, users, res.rows[0].id);
+            }
+          });
+        }
+      });
     }
+  });
+});
+
+controller.hears('clean', ['ambient'], function(bot, message) {
+  db.cleanTables(() => {
+    process.exit();
   });
 });
 
@@ -89,9 +102,9 @@ controller.hears('.*', ['ambient'], function (bot, message) {
 });
 
 var removeUser = function(users, userId) {
-  for(var idx in users) {
-    if(users[idx] == userId) {
-      users.splice(idx, 1);
+  for(var id in users) {
+    if(id == userId) {
+      delete users[id];
       break;
     }
   }
@@ -106,7 +119,12 @@ var referenceUserId = function(userId) {
   return '<@' + userId + '>';
 }
 
-var printUsers = function(users) {
+var printUsers = function(userMap) {
+  var users = [];
+  for(var userId in userMap) {
+    users.push(userId);
+  }
+
   var ret = '';
   if(users.length == 1) {
     ret = referenceUserId(users[0]);
@@ -122,19 +140,31 @@ var printUsers = function(users) {
   return ret;
 }
 
-var startIndividualStandup = function(bot, message, users) {
+var addToStandup = function(standupId, userName, responses) {
+  db.addToStandup(standupId, userName, responses, (err, res) => {
+    if(err)
+      console.log(err);
+  });
+}
+
+var finishedStandup = function(bot) {
+  inStandup = false;
+}
+
+var startIndividualStandup = function(bot, message, users, standupId) {
   bot.startConversation(message, function(err, conversation) {
     if(err) {
       console.log(err);
     } else {
-      standupConversation(users, message.user, conversation, bot, message);
+      standupConversation(users, message.user, conversation, bot, message, standupId);
     }
   });
 }
 
-var standupConversation = function(users, userId, conversation, bot, message) {
+var standupConversation = function(users, userId, conversation, bot, message, standupId) {
   conversation.say("<@" + userId +">, you're up.");
 
+  var userName = users[userId];
   removeUser(users, userId);
 
   conversation.addQuestion('What did you do yesterday?', function(response, convo) {
@@ -173,7 +203,7 @@ var standupConversation = function(users, userId, conversation, bot, message) {
       }
     }
 
-    addToStandup(userId, responses);
+    addToStandup(standupId, userName, responses);
 
     if(response.text == 'done') {
       convo.say('Standup completed. Thank you.');
@@ -182,8 +212,8 @@ var standupConversation = function(users, userId, conversation, bot, message) {
       nextUserId = extractUserId(response.text);
 
       var inUsers = false;
-      for(var idx in users) {
-        if(users[idx] == nextUserId) {
+      for(var id in users) {
+        if(id == nextUserId) {
           inUsers = true;
           break;
         }
@@ -191,7 +221,7 @@ var standupConversation = function(users, userId, conversation, bot, message) {
 
       if(inUsers) {
         message.user = nextUserId;
-        startIndividualStandup(bot, message, users);
+        startIndividualStandup(bot, message, users, standupId);
       } else {
         convo.say("That person has already gone");
         convo.repeat();

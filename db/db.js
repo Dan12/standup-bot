@@ -1,76 +1,92 @@
 const pg = require('pg');
 
-const tableName = 'standups';
+const standupTableName = 'standups';
+const conversationTableName = 'conversations';
 
-var makeDBQuery = function(query, callback) {
-  pg.connect(process.env.DATABASE_URL, function(err, client, done) {
-    if(err) {
-      done();
-      callback(err, []);
-    } else {
-      client.query(query, function(err, result) {
-        done();
-        callback(err, result);
-      });
-    }
-  });
+const pool = new pg.Pool({});
+
+pool.on('error', function (err, client) {
+  console.error('[server]: idle client error', err.message, err.stack);
+});
+
+var createStandup = function(callback) {
+  pool.query('INSERT INTO ' + standupTableName + '(created_at) VALUES(now()) RETURNING id', callback);
 }
 
-var makeDBValueQuery = function(query, values, callback) {
-  pg.connect(process.env.DATABASE_URL, function(err, client, done) {
-    if(err) {
-      done();
-      callback(err, []);
-    } else {
-      client.query(query, values, function(err, result) {
-        done();
-        callback(err, result);
-      });
-    }
-  });
-}
-
-var addStandup = function(data) {
-  makeDBValueQuery('INSERT INTO ' + tableName + '(standup) VALUES($1)', [data], (err, res) => {
-    if(err)
-      console.log(err);
-  });
+var addToStandup = function(standupId, userName, conversation, callback) {
+  pool.query('INSERT INTO ' + conversationTableName + '(standup_id, user_name, conversation) VALUES($1, $2, $3)', [standupId, userName, conversation], callback);
 }
 
 var removeStandup = function(id) {
-  makeDBValueQuery('DELETE FROM ' + tableName + ' WHERE id=$1', [id], (err, res) => {
+  pool.query('DELETE FROM ' + standupTableName + ' WHERE id=$1', [id], (err, res) => {
     if(err)
       console.log(err);
   });
 }
 
-var createTable = function(callback) {
-  makeDBQuery('CREATE TABLE ' + tableName.toUpperCase() + '(id SERIAL UNIQUE, standup TEXT)', callback);
+var createStandupTable = function(callback) {
+  pool.query('CREATE TABLE ' + standupTableName + '(id SERIAL UNIQUE, created_at TIMESTAMP)', callback);
+}
+
+var createConversationTable = function(callback) {
+  pool.query('CREATE TABLE ' + conversationTableName + '(id SERIAL UNIQUE, standup_id INTEGER REFERENCES ' + standupTableName + ' (id) ON DELETE CASCADE, user_name TEXT, conversation TEXT)', callback);
 }
 
 var getAllStandups = function(callback) {
-  makeDBQuery('SELECT * FROM ' + tableName, callback);
+  pool.query('SELECT * FROM ' + standupTableName, (err, standupResults) => {
+    if(err)
+      console.log(err);
+    pool.query('SELECT * FROM ' + conversationTableName, (err, conversationResults) => {
+      callback(err, {standupResults: standupResults, conversationResults: conversationResults});
+    })
+  });
 }
 
-var initTable = function() {
-  makeDBQuery("select * from information_schema.tables where table_schema='public' and table_name='" + tableName + "'", (err, res) => {
-    if(err) {
-      console.log(err)
-    } else if(res.rows.length == 0) {
-      createTable((err, res) => {
+var init = function() {
+  initTable(standupTableName, createStandupTable, (err, res) => {
+    if(err)
+      console.log(err);
+    else {
+      initTable(conversationTableName, createConversationTable, (err, res) => {
         if(err)
           console.log(err);
       });
-    } else {
-      console.log('[server]: table exists');
     }
+  });
+}
+
+var initTable = function(tableName, createFunc, callback) {
+  pool.query("select * from information_schema.tables where table_schema='public' and table_name='" + tableName + "'", (err, res) => {
+    if(err) {
+      console.log(err)
+    } else if(res.rows.length == 0) {
+      createFunc(callback);
+    } else {
+      console.log('[server]: ' + tableName + ' table exists');
+      callback();
+    }
+  });
+}
+
+var cleanTables = function(callback) {
+  pool.query("drop table " + conversationTableName, (err, res) => {
+    if(err)
+      console.log(err);
+
+    pool.query("drop table " + standupTableName, (err, res) => {
+      if(err)
+        console.log(err);
+
+      callback();
+    });
   });
 }
 
 module.exports = {
-  initTable: initTable,
+  init: init,
   getAllStandups: getAllStandups,
-  createTable: createTable,
-  addStandup: addStandup,
-  removeStandup: removeStandup
+  createStandup: createStandup,
+  addToStandup: addToStandup,
+  removeStandup: removeStandup,
+  cleanTables: cleanTables
 }

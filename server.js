@@ -18,7 +18,7 @@ app.use(express.static('public'))
 app.set('view engine', 'pug');
 
 // check if table is created
-db.initTable();
+db.init();
 
 app.get('/', (request, response) => {
 
@@ -28,7 +28,21 @@ app.get('/', (request, response) => {
       response.send("Database Error");
     }
     else {
-      response.render('index', {results: result.rows} );
+      var standups = {};
+      for(var idx in result.standupResults.rows) {
+        var row = result.standupResults.rows[idx];
+        standups[row.id] = {created_at: row.created_at, conversations: []}
+      }
+
+      for(var idx in result.conversationResults.rows) {
+        var row = result.conversationResults.rows[idx];
+        standups[row.standup_id].conversations.push({
+          userName: row.user_name,
+          conversation: JSON.parse(row.conversation)
+        });
+      }
+
+      response.render('index', {standups: standups} );
     }
   });
 });

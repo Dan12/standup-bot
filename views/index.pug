@@ -3,14 +3,14 @@ extends layouts/main.pug
 block content
   h1 Standup Bot Dashboard
   ul
-    each row in results
+    each standup, standup_id in standups
       li
-        a(href=`/standups/remove/${row['id']}`) Delete Standup
+        a(href=`/standups/remove/${standup_id}`) Delete Standup
+        div= standup.created_at
         ul
-          - var parsed_row = JSON.parse(row['standup']);
-          each response, user in parsed_row
+          each conversation in standup.conversations
             li
-              = user
+              = conversation.userName
               ul
-                each question in response
+                each question in conversation.conversation
                   li= `${question['question']} ${question['answer']}`
