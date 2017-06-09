@@ -5,8 +5,11 @@ block content
   ul
     each standup, standup_id in standups
       li
+        - var date = new Date(Date.parse(standup.created_at));
+        div= `Standup on: ${new Date((date.getTime() + (date.getTimezoneOffset() * 60000)) + (3600000*-4)).toLocaleString()} ET`
+
         a(href=`/standups/remove/${standup_id}`) Delete Standup
-        div= standup.created_at
+
         ul
           each conversation in standup.conversations
             li

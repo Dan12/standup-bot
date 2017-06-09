@@ -161,6 +161,12 @@ var startIndividualStandup = function(bot, message, users, standupId) {
   });
 }
 
+var noTextResponse = function(conversation, varname, response) {
+  if(response.text == '' && response.attachments && response.attachments.length > 0) {
+    response.text = '[attachment]: ' + response.attachments[0].title;
+  }
+}
+
 var standupConversation = function(users, userId, conversation, bot, message, standupId) {
   conversation.say("<@" + userId +">, you're up.");
 
@@ -168,18 +174,25 @@ var standupConversation = function(users, userId, conversation, bot, message, st
   removeUser(users, userId);
 
   conversation.addQuestion('What did you do yesterday?', function(response, convo) {
-
+    noTextResponse(convo, 'y', response);
     convo.next();
 
   },{key: 'y', multiple: false},'default');
 
   conversation.addQuestion('What do you plan on doing today?', function(response, convo) {
-
+    noTextResponse(convo, 't', response);
     convo.next();
 
   },{key: 't', multiple: false},'default');
 
   conversation.addQuestion('Is there anything blocking you?', function(response, convo) {
+    noTextResponse(convo, 'b', response);
+    convo.next();
+
+  },{key: 'b', multiple: false},'default');
+
+  conversation.addQuestion('How are you feeling today?', function(response, convo) {
+    noTextResponse(convo, 'f', response);
     if(users.length == 0) {
       convo.say("Everyone has gone. Thank you all.");
       finishedStandup(bot);
@@ -189,7 +202,7 @@ var standupConversation = function(users, userId, conversation, bot, message, st
 
     convo.next();
 
-  },{key: 'b', multiple: false},'default');
+  },{key: 'f', multiple: false},'default');
 
   conversation.addQuestion(
     'Say `done` if you are done.\nWho would you like to go next?\n' + printUsers(users) + (users.length == 1 ? ' has ' : ' have ') + 'not gone yet.',
@@ -197,7 +210,7 @@ var standupConversation = function(users, userId, conversation, bot, message, st
 
     var responses = conversation.getResponses();
     for(var key in responses) {
-      if(key != 'b' && key != 't' && key != 'y') {
+      if(key.startsWith('Say `done` if you are done.')) {
         delete responses[key];
         break;
       }

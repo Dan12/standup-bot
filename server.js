@@ -40,6 +40,7 @@ app.get('/', (request, response) => {
           userName: row.user_name,
           conversation: JSON.parse(row.conversation)
         });
+        console.log(row.conversation);
       }
 
       response.render('index', {standups: standups} );
