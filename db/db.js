@@ -3,7 +3,9 @@ const pg = require('pg');
 const standupTableName = 'standups';
 const conversationTableName = 'conversations';
 
-const pool = new pg.Pool({});
+const pool = new pg.Pool({
+  address: process.env.DATABASE_URL
+});
 
 pool.on('error', function (err, client) {
   console.error('[server]: idle client error', err.message, err.stack);
