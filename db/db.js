@@ -1,11 +1,23 @@
 const pg = require('pg');
+const url = require('url');
 
 const standupTableName = 'standups';
 const conversationTableName = 'conversations';
 
-const pool = new pg.Pool({
-  address: process.env.DATABASE_URL
-});
+
+const params = url.parse(process.env.DATABASE_URL);
+const auth = params.auth ? params.auth.split(':') : ['',''];
+
+const config = {
+  user: auth[0],
+  password: auth[1],
+  host: params.hostname,
+  port: params.port,
+  database: params.pathname.split('/')[1],
+  ssl: auth[1] != ''
+};
+
+const pool = new pg.Pool(config);
 
 pool.on('error', function (err, client) {
   console.error('[server]: idle client error', err.message, err.stack);
