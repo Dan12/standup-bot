@@ -8,6 +8,8 @@ const conversationTableName = 'conversations';
 const params = url.parse(process.env.DATABASE_URL);
 const auth = params.auth ? params.auth.split(':') : ['',''];
 
+const numRows = 5;
+
 const config = {
   user: auth[0],
   password: auth[1],
@@ -46,11 +48,11 @@ var createConversationTable = function(callback) {
   pool.query('CREATE TABLE ' + conversationTableName + '(id SERIAL UNIQUE, standup_id INTEGER REFERENCES ' + standupTableName + ' (id) ON DELETE CASCADE, user_name TEXT, conversation TEXT)', callback);
 }
 
-var getAllStandups = function(callback) {
-  pool.query('SELECT * FROM ' + standupTableName, (err, standupResults) => {
+var getRecentStandups = function(callback) {
+  pool.query('SELECT * FROM ' + standupTableName + ' ORDER BY created_at DESC LIMIT ' + numRows, (err, standupResults) => {
     if(err)
       console.log(err);
-    pool.query('SELECT * FROM ' + conversationTableName, (err, conversationResults) => {
+    pool.query('SELECT * FROM ' + conversationTableName + ' WHERE standup_id in (' + 'SELECT id FROM ' + standupTableName + ' ORDER BY created_at DESC LIMIT ' + numRows + ')', (err, conversationResults) => {
       callback(err, {standupResults: standupResults, conversationResults: conversationResults});
     })
   });
@@ -98,7 +100,7 @@ var cleanTables = function(callback) {
 
 module.exports = {
   init: init,
-  getAllStandups: getAllStandups,
+  getRecentStandups: getRecentStandups,
   createStandup: createStandup,
   addToStandup: addToStandup,
   removeStandup: removeStandup,

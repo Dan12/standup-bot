@@ -22,7 +22,7 @@ db.init();
 
 app.get('/', (request, response) => {
 
-  db.getAllStandups((err, result) => {
+  db.getRecentStandups((err, result) => {
     if (err) {
       console.error('[server]:' + err);
       response.send("Database Error");
@@ -40,7 +40,6 @@ app.get('/', (request, response) => {
           userName: row.user_name,
           conversation: JSON.parse(row.conversation)
         });
-        console.log(row.conversation);
       }
 
       response.render('index', {standups: standups} );
