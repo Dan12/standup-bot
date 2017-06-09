@@ -3,12 +3,12 @@ extends layouts/main.pug
 block content
   h1 Standup Bot Dashboard
   ul
-    each standup, standup_id in standups
+    each standup in standups
       li
         - var date = new Date(Date.parse(standup.created_at));
         div= `Standup on: ${new Date((date.getTime() + (date.getTimezoneOffset() * 60000)) + (3600000*-4)).toLocaleString()} ET`
 
-        a(href=`/standups/remove/${standup_id}`) Delete Standup
+        a(href=`/standups/remove/${standup.id}`) Delete Standup
 
         ul
           each conversation in standup.conversations

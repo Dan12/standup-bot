@@ -91,6 +91,8 @@ controller.hears(['start standup', 'start a standup', 'standup'], ['direct_menti
   });
 });
 
+
+// TODO remove
 controller.hears('clean', ['ambient'], function(bot, message) {
   db.cleanTables(() => {
     process.exit();
@@ -193,8 +195,19 @@ var standupConversation = function(users, userId, conversation, bot, message, st
 
   conversation.addQuestion('How are you feeling today?', function(response, convo) {
     noTextResponse(response);
-    if(users.length == 0) {
-      convo.say("Everyone has gone. Thank you all.");
+
+    // check if any keys left
+    var finished = true;
+    for(var id in users) {
+      finished = false;
+      break;
+    }
+
+    if(finished) {
+      convo.say("Everyone has gone.\nStandup Completed.\nThank you all.");
+      // add last user's response
+      var responses = conversation.getResponses();
+      addToStandup(standupId, userName, responses);
       finishedStandup(bot);
     } else {
       convo.gotoThread('next_person');

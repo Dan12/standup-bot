@@ -28,18 +28,31 @@ app.get('/', (request, response) => {
       response.send("Database Error");
     }
     else {
-      var standups = {};
+      var standupMap = {};
+      var standups = [];
       for(var idx in result.standupResults.rows) {
         var row = result.standupResults.rows[idx];
-        standups[row.id] = {created_at: row.created_at, conversations: []}
+        standupMap[row.id] = {created_at: row.created_at, conversations: []}
+        standups.push({
+          id: row.id
+        });
       }
 
       for(var idx in result.conversationResults.rows) {
         var row = result.conversationResults.rows[idx];
-        standups[row.standup_id].conversations.push({
+        standupMap[row.standup_id].conversations.push({
           userName: row.user_name,
           conversation: JSON.parse(row.conversation)
         });
+      }
+
+      for(var id in standupMap) {
+        for(var idx in standups) {
+          if(id == standups[idx].id) {
+            standups[idx] = Object.assign(standups[idx], standupMap[id]);
+            break;
+          }
+        }
       }
 
       response.render('index', {standups: standups} );
